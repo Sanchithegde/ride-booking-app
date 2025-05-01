@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ride History</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #fff;
+      color: #000;
+      padding: 2rem;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      margin-bottom: 1rem;
+      background-color: #000;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    h2 {
+      margin-bottom: 1.5rem;
+      font-size: 2rem;
+    }
+
+    .history-container {
+      width: 100%;
+      max-width: 800px;
+      margin-top: 2rem;
+    }
+
+    .ride-item {
+      background: #f2f2f2;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border: 1px solid #ddd;
+    }
+
+    .ride-item h3 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: #333;
+    }
+
+    .ride-item p {
+      margin: 0.5rem 0;
+    }
+
+    .ride-item .details {
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    .ride-item .status {
+      margin-top: 1rem;
+      font-weight: bold;
+      color: #28a745; /* Green for success status */
+    }
+
+    .empty-message {
+      font-size: 1.2rem;
+      color: #999;
+      text-align: center;
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+  <a href="dashboard.html"><button>← Back to Dashboard</button></a>
+
+  <h2>Ride History</h2>
+
+  <div class="history-container" id="ride-history"></div>
+
+  <script src="history.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Book a Ride</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="group-container">
+    <a href="dashboard.html"><button style="margin-bottom: 1rem;">← Back to Dashboard</button></a>
+
+    <h2>Book a Ride</h2>
+
+    <form id="ride-form">
+      <div class="form-group">
+        <label for="pickup">Pickup Location</label>
+        <input type="text" id="pickup" required placeholder="e.g. Home" />
+      </div>
+
+      <div class="form-group">
+        <label for="drop">Drop Location</label>
+        <input type="text" id="drop" required placeholder="e.g. School" />
+      </div>
+
+      <div id="ride-details" style="margin-top: 1rem;">
+        <p><strong>Distance: </strong><span id="distance">- km</span></p>
+        <p><strong>Price: </strong><span id="price">- INR</span></p>
+      </div>
+
+      <div class="form-group">
+        <label for="rider">Select Group Member</label>
+        <select id="rider" required>
+          <option value="Myself">Myself</option>
+        </select>
+      </div>
+
+      <button type="button" id="current-location-button" style="margin-top: 1rem;">Use My Current Location</button>
+      <button type="submit">Book Ride</button>
+    </form>
+
+    <div id="confirmation-message" style="margin-top: 1.5rem;"></div>
+    <div id="map" style="height: 400px; margin-top: 2rem;"></div>
+  </div>
+
+  <script src="book.js"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBpwqMbmH8eJHOhkSHOvRuNZu_j76sUzss&libraries=places&callback=initMap" async defer></script>
+</body>
+</html>
