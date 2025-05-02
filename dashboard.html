@@ -16,9 +16,18 @@
         <a href="book.html"><button>Book a Ride</button></a>
         <a href="track.html"><button>Track Ride</button></a>
         <a href="history.html"><button>Ride History</button></a>
+        <button id="logout-button">Log Out</button>
       </div>
   </div>
-  
-  
+  <script>
+    document.getElementById('logout-button').addEventListener('click', () => {
+      // Clear user-related localStorage
+      localStorage.removeItem('userGroup');
+      localStorage.removeItem('currentRide');
+
+      // Redirect to login or landing page
+      window.location.href = 'index.html'; // Change this if your login page is named differently
+    });
+  </script>
 </body>
 </html>
