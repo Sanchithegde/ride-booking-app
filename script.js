@@ -1,21 +1,22 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
-// Your Firebase configuration
+// Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyBRA9J106XJrYHBPPzgarHT9MP1wsLKuzM",
-    authDomain: "ridesharing-app-566bf.firebaseapp.com",
-    projectId: "ridesharing-app-566bf",
-    storageBucket: "ridesharing-app-566bf.firebasestorage.app",
-    messagingSenderId: "862020732936",
-    appId: "1:862020732936:web:196328e7aa08f7b61ee9bd",
-    measurementId: "G-T7YZSF72Z0"
-  };
-  
+  apiKey: "AIzaSyBRA9J106XJrYHBPPzgarHT9MP1wsLKuzM",
+  authDomain: "ridesharing-app-566bf.firebaseapp.com",
+  projectId: "ridesharing-app-566bf",
+  storageBucket: "ridesharing-app-566bf.appspot.com",
+  messagingSenderId: "862020732936",
+  appId: "1:862020732936:web:196328e7aa08f7b61ee9bd",
+  measurementId: "G-T7YZSF72Z0"
+};
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
 // DOM elements
 const toggleLink = document.getElementById('toggle-link');
@@ -23,17 +24,16 @@ const toggleText = document.getElementById('toggle-text');
 const formTitle = document.getElementById('form-title');
 const authButton = document.getElementById('auth-button');
 const nameGroup = document.getElementById('name-group');
+const nameInput = document.getElementById('name');
 const emailInput = document.getElementById('email');
 const passwordInput = document.getElementById('password');
 const authForm = document.getElementById('auth-form');
-const errorMessage = document.getElementById('error-message'); // Error message container
+const errorMessage = document.getElementById('error-message');
 
-// Track whether the user is logging in or registering
 let isLogin = true;
 
-// Toggle between login and sign up form
-toggleLink.addEventListener('click', (e) => {
-  e.preventDefault();
+// Toggle login/signup mode
+function toggleFormMode() {
   isLogin = !isLogin;
 
   if (isLogin) {
@@ -48,43 +48,78 @@ toggleLink.addEventListener('click', (e) => {
     nameGroup.style.display = 'block';
   }
 
-  // Rebind the link in case it was replaced
+  // Re-bind toggle link
   document.getElementById('toggle-link').addEventListener('click', (e) => {
-    toggleLink.click();
+    e.preventDefault();
+    toggleFormMode();
   });
+}
+
+// Initial binding
+toggleLink.addEventListener('click', (e) => {
+  e.preventDefault();
+  toggleFormMode();
 });
 
-// Handle form submission for login or registration
+// Handle login or registration
 authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  const email = emailInput.value;
-  const password = passwordInput.value;
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
 
   try {
     if (isLogin) {
-      // Login the user
       await signInWithEmailAndPassword(auth, email, password);
-      window.location.href = 'dashboard.html'; // Redirect to dashboard on success
+      window.location.href = 'dashboard.html';
     } else {
-      // Handle registration logic (you can extend this for Firebase Auth registration)
-      alert('Registration functionality is not yet implemented. You can add it if needed!');
+      const name = nameInput.value.trim();
+      if (!name) {
+        errorMessage.textContent = 'Please enter your name.';
+        errorMessage.style.display = 'block';
+        return;
+      }
+
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      await updateProfile(user, { displayName: name });
+
+      // Add user to Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        name: name,
+        email: email,
+        createdAt: new Date().toISOString()
+      });
+
+      localStorage.setItem('userName', name);
+      window.location.href = 'dashboard.html';
     }
   } catch (error) {
     let errorMessageText = '';
 
-    if (error.code === 'auth/invalid-email') {
-      errorMessageText = 'Invalid email format. Please check and try again.';
-    } else if (error.code === 'auth/user-not-found') {
-      errorMessageText = 'No user found with this email. Please check and try again.';
-    } else if (error.code === 'auth/wrong-password') {
-      errorMessageText = 'Incorrect password. Please try again.';
-    } else {
-      errorMessageText = 'Login failed. Please try again later.';
+    switch (error.code) {
+      case 'auth/email-already-in-use':
+        errorMessageText = 'Email already in use.';
+        break;
+      case 'auth/invalid-email':
+        errorMessageText = 'Invalid email address.';
+        break;
+      case 'auth/weak-password':
+        errorMessageText = 'Password should be at least 6 characters.';
+        break;
+      case 'auth/user-not-found':
+        errorMessageText = 'User not found.';
+        break;
+      case 'auth/wrong-password':
+        errorMessageText = 'Incorrect password.';
+        break;
+      default:
+        errorMessageText = 'Authentication failed. Please try again.';
     }
 
-    // Display the error message in the error message container
     errorMessage.textContent = errorMessageText;
-    errorMessage.style.display = 'block'; // Show the error message container
+    errorMessage.style.display = 'block';
   }
 });

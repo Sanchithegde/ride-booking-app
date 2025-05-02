@@ -1,9 +1,39 @@
-let autocompletePickup, autocompleteDrop;
-let directionsService, map;
-let pickupLocation, dropLocation;
-let markers = [];
+// Firebase SDK Imports
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 
-const baseBangaloreCoords = { lat: 12.9716, lng: 77.5946 };
+// Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyBRA9J106XJrYHBPPzgarHT9MP1wsLKuzM",
+  authDomain: "ridesharing-app-566bf.firebaseapp.com",
+  projectId: "ridesharing-app-566bf",
+  storageBucket: "ridesharing-app-566bf.appspot.com",
+  messagingSenderId: "862020732936",
+  appId: "1:862020732936:web:196328e7aa08f7b61ee9bd",
+  measurementId: "G-T7YZSF72Z0"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+// Global Variables
+let currentUser = null;
+let groupMembers = [];
+let userGroup = null;
+let map, directionsService, directionsRenderer;
+let pickupMarker, dropMarker;
+let markers = [];
 
 const pickupInput = document.getElementById('pickup');
 const dropInput = document.getElementById('drop');
@@ -14,117 +44,187 @@ const distanceDisplay = document.getElementById('distance');
 const priceDisplay = document.getElementById('price');
 const currentLocationButton = document.getElementById('current-location-button');
 
-let groupMembers = [];
+const baseBangaloreCoords = { lat: 12.9716, lng: 77.5946 };
 
-function loadGroupMembers() {
-  const group = JSON.parse(localStorage.getItem('userGroup'));
-  if (!group || !group.members || group.members.length === 0) {
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    currentUser = user;
+    await loadGroupMembersFromFirestore();
+    window.initMap(); // Call map init only after group loaded
+  } else {
+    window.location.href = 'index.html';
+  }
+});
+
+async function loadGroupMembersFromFirestore() {
+  const q = query(collection(db, 'groups'), where('members', 'array-contains', currentUser.email));
+  const snapshot = await getDocs(q);
+
+  if (!snapshot.empty) {
+    const groupDoc = snapshot.docs[0];
+    userGroup = groupDoc.data();
+    groupMembers = userGroup.members;
+
+    groupMembers.forEach(member => {
+      const option = document.createElement('option');
+      option.value = member;
+      option.textContent = member;
+      riderSelect.appendChild(option);
+    });
+  } else {
     confirmation.innerText = "No group found. Please create a group first.";
     rideForm.style.display = 'none';
-    return;
   }
-
-  groupMembers = group.members;
-
-  group.members.forEach(member => {
-    const option = document.createElement('option');
-    option.value = member;
-    option.textContent = member;
-    riderSelect.appendChild(option);
-  });
 }
 
-window.initMap = function () {
-  const options = {
-    types: ['geocode'],
-    componentRestrictions: { country: 'IN' }
-  };
+window.initMap = () => {
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 12,
+    center: baseBangaloreCoords,
+  });
 
   directionsService = new google.maps.DirectionsService();
+  directionsRenderer = new google.maps.DirectionsRenderer({ map });
 
-  autocompletePickup = new google.maps.places.Autocomplete(pickupInput, options);
-  autocompleteDrop = new google.maps.places.Autocomplete(dropInput, options);
+  const autocompletePickup = new google.maps.places.Autocomplete(pickupInput);
+  const autocompleteDrop = new google.maps.places.Autocomplete(dropInput);
 
-  autocompletePickup.addListener('place_changed', () => {
+  autocompletePickup.bindTo("bounds", map);
+  autocompleteDrop.bindTo("bounds", map);
+
+  autocompletePickup.addListener("place_changed", () => {
     const place = autocompletePickup.getPlace();
-    if (place.geometry) {
-      pickupLocation = place.geometry.location;
-      updateMap(pickupLocation, 'Pickup');
-      if (dropLocation) calculateDistanceAndPrice();
-    }
+    if (!place.geometry) return;
+    setMarker(place.geometry.location, "pickup");
   });
 
-  autocompleteDrop.addListener('place_changed', () => {
+  autocompleteDrop.addListener("place_changed", () => {
     const place = autocompleteDrop.getPlace();
-    if (place.geometry) {
-      dropLocation = place.geometry.location;
-      if (pickupLocation) calculateDistanceAndPrice();
-    }
+    if (!place.geometry) return;
+    setMarker(place.geometry.location, "drop");
   });
 
-  map = new google.maps.Map(document.getElementById('map'), {
-    center: baseBangaloreCoords,
-    zoom: 12
-  });
-
-  loadGroupMembers();
   generateDummyMarkers();
 };
+
+// Fetch the user's location from Firestore
+async function fetchUserLocation(email) {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", email)); // Query by email
+    const snapshot = await getDocs(q);
+  
+    if (!snapshot.empty) {
+      // Assuming there's only one user with that email
+      const userDoc = snapshot.docs[0];
+      const userData = userDoc.data();
+      const location = userData.location; // This is a GeoPoint
+  
+      // Return the latitude and longitude as an object
+      return {
+        lat: location.latitude,
+        lng: location.longitude
+      };
+    } else {
+      console.error('User not found in Firestore');
+      return null;
+    }
+  }
+  
+  
+  // Handle rider selection and update pickup location
+riderSelect.addEventListener('change', async function () {
+    const riderEmail = riderSelect.value;
+  
+    if (riderEmail === "Myself") {
+      getCurrentLocation();
+    } else {
+      // Fetch the selected user's location from Firestore
+      const location = await fetchUserLocation(riderEmail);
+  
+      if (location) {
+        // Create a Google Maps LatLng object using the fetched coordinates
+        const userLatLng = new google.maps.LatLng(location.lat, location.lng); 
+  
+        pickupInput.value = `${riderEmail}'s Location`; // Show rider location in the input field
+  
+        setMarker(userLatLng, "pickup"); // Place the pickup marker on the map
+        map.panTo(userLatLng); // Center the map on the selected user's location
+  
+        // Update the pickupLocation global variable
+        pickupLocation = userLatLng;
+        if (dropMarker) calculateAndDisplayRoute(); // Recalculate route if drop marker exists
+      } else {
+        alert("User location not found in Firestore.");
+      }
+    }
+  });
+  
+
+function setMarker(location, type) {
+  if (type === "pickup") {
+    if (pickupMarker) pickupMarker.setMap(null);
+    pickupMarker = new google.maps.Marker({
+      position: location,
+      map,
+      label: "P",
+    });
+  } else if (type === "drop") {
+    if (dropMarker) dropMarker.setMap(null);
+    dropMarker = new google.maps.Marker({
+      position: location,
+      map,
+      label: "D",
+    });
+  }
+
+  map.panTo(location);
+
+  if (pickupMarker && dropMarker) {
+    calculateAndDisplayRoute();
+  }
+}
+
+function calculateAndDisplayRoute() {
+  directionsService.route(
+    {
+      origin: pickupMarker.getPosition(),
+      destination: dropMarker.getPosition(),
+      travelMode: google.maps.TravelMode.DRIVING,
+    },
+    (response, status) => {
+      if (status === "OK") {
+        directionsRenderer.setDirections(response);
+        const distance = response.routes[0].legs[0].distance.value / 1000;
+        const price = (distance * 30).toFixed(2);
+        distanceDisplay.textContent = `Distance: ${distance.toFixed(2)} km`;
+        priceDisplay.textContent = `Estimated Price: ₹${price}`;
+      } else {
+        window.alert("Directions request failed: " + status);
+      }
+    }
+  );
+}
+
+function addMarker(location, label) {
+  const marker = new google.maps.Marker({
+    position: location,
+    map: map,
+    label: label,
+  });
+  markers.push(marker);
+}
 
 function clearMarkers() {
   markers.forEach(marker => marker.setMap(null));
   markers = [];
 }
 
-function addMarker(position, label) {
-  const marker = new google.maps.Marker({
-    position,
-    map,
-    label
-  });
-  markers.push(marker);
-}
-
-function updateMap(position, label) {
-  clearMarkers();
-  addMarker(position, label);
-  map.setCenter(position);
-  map.setZoom(14);
-}
-
-function getCurrentLocation() {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(function (position) {
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-      const currentLocation = new google.maps.LatLng(lat, lng);
-
-      const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({ location: currentLocation }, function (results, status) {
-        if (status === google.maps.GeocoderStatus.OK && results[0]) {
-          pickupInput.value = results[0].formatted_address;
-          pickupLocation = currentLocation;
-          updateMap(currentLocation, 'Me');
-          if (dropLocation) calculateDistanceAndPrice();
-        } else {
-          alert("Unable to get the current location address.");
-        }
-      });
-    }, function () {
-      alert("Geolocation service failed. Please enable location access.");
-    });
-  } else {
-    alert("Geolocation is not supported by this browser.");
-  }
-}
-
 function generateDummyMarkers() {
   clearMarkers();
 
-  const group = JSON.parse(localStorage.getItem('userGroup'));
-  if (!group || !group.members) return;
+  if (!userGroup || !userGroup.members) return;
 
-  const members = group.members.filter(m => m !== "Myself");
+  const members = userGroup.members.filter(m => m !== "Myself");
 
   members.forEach((member, index) => {
     const offsetLat = (Math.random() - 0.5) * 0.1;
@@ -141,82 +241,31 @@ function generateDummyMarkers() {
   map.setCenter(baseBangaloreCoords);
 }
 
-riderSelect.addEventListener('change', function () {
+rideForm.addEventListener('submit', function(event) {
+  event.preventDefault();
   const rider = riderSelect.value;
-  if (rider === "Myself") {
-    getCurrentLocation();
+  const pickup = pickupInput.value;
+  const drop = dropInput.value;
+
+  confirmation.textContent = `Ride booked for ${rider} from ${pickup} to ${drop}.`;
+});
+
+currentLocationButton.addEventListener('click', () => {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const currentLoc = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        pickupInput.value = "Current Location";
+        setMarker(currentLoc, "pickup");
+      },
+      () => {
+        alert("Unable to fetch your location.");
+      }
+    );
   } else {
-    // Just locate the dummy marker position instead of actual geocode
-    const index = groupMembers.findIndex(m => m === rider);
-    const dummyLat = baseBangaloreCoords.lat + ((index + 1) * 0.01);
-    const dummyLng = baseBangaloreCoords.lng + ((index + 1) * 0.01);
-
-    const dummyLatLng = new google.maps.LatLng(dummyLat, dummyLng);
-    pickupLocation = dummyLatLng;
-    pickupInput.value = `${rider}'s Location (Dummy)`;
-
-    updateMap(dummyLatLng, rider.charAt(0));
-    if (dropLocation) calculateDistanceAndPrice();
+    alert("Geolocation is not supported by your browser.");
   }
 });
-
-function calculateDistanceAndPrice() {
-  const request = {
-    origin: pickupLocation,
-    destination: dropLocation,
-    travelMode: google.maps.TravelMode.DRIVING
-  };
-
-  directionsService.route(request, function (result, status) {
-    if (status === google.maps.DirectionsStatus.OK) {
-      const distanceInMeters = result.routes[0].legs[0].distance.value;
-      const distanceInKm = distanceInMeters / 1000;
-      const price = distanceInKm * 30;
-
-      distanceDisplay.innerText = `${distanceInKm.toFixed(2)} km`;
-      priceDisplay.innerText = `₹ ${price.toFixed(2)}`;
-    } else {
-      console.error('Error calculating route:', status);
-    }
-  });
-}
-
-rideForm.addEventListener('submit', function (e) {
-  e.preventDefault();
-
-  const rider = riderSelect.value;
-
-  if (!pickupLocation || !dropLocation || !rider) {
-    confirmation.innerText = "Please fill in all fields and select valid locations.";
-    return;
-  }
-
-  const ride = {
-    pickup: pickupInput.value,
-    drop: dropInput.value,
-    rider,
-    timestamp: new Date().toISOString(),
-    group: groupMembers,
-    distance: distanceDisplay.innerText,
-    price: priceDisplay.innerText
-  };
-
-  localStorage.setItem('currentRide', JSON.stringify(ride));
-
-  confirmation.innerHTML = `
-    ✅ Ride booked for <strong>${rider}</strong><br/>
-    From <strong>${ride.pickup}</strong> to <strong>${ride.drop}</strong><br/>
-    Distance: ${ride.distance} | Price: ${ride.price}<br/>
-    Shared with group: ${ride.group.join(', ')}
-  `;
-
-  rideForm.reset();
-  distanceDisplay.innerText = '- km';
-  priceDisplay.innerText = '- INR';
-  pickupLocation = null;
-  dropLocation = null;
-  clearMarkers();
-  generateDummyMarkers();
-});
-
-currentLocationButton.addEventListener('click', getCurrentLocation);
