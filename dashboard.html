@@ -14,20 +14,114 @@
     <div class="dashboard-actions">
         <a href="group.html"><button>Create / Manage Group</button></a>
         <a href="book.html"><button>Book a Ride</button></a>
-        <a href="track.html"><button>Track Ride</button></a>
+        <button id="track-ride-btn">Track Ride</button>
         <a href="history.html"><button>Ride History</button></a>
         <button id="logout-button">Log Out</button>
-      </div>
+    </div>
   </div>
+
   <script>
     document.getElementById('logout-button').addEventListener('click', () => {
-      // Clear user-related localStorage
       localStorage.removeItem('userGroup');
       localStorage.removeItem('currentRide');
-
-      // Redirect to login or landing page
-      window.location.href = 'index.html'; // Change this if your login page is named differently
+      window.location.href = 'index.html';
     });
   </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      query,
+      where,
+      orderBy,
+      limit,
+      getDocs
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+  
+    import {
+      getAuth,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+  
+    const firebaseConfig = {
+      apiKey: "AIzaSyBRA9J106XJrYHBPPzgarHT9MP1wsLKuzM",
+      authDomain: "ridesharing-app-566bf.firebaseapp.com",
+      projectId: "ridesharing-app-566bf",
+      storageBucket: "ridesharing-app-566bf.appspot.com",
+      messagingSenderId: "862020732936",
+      appId: "1:862020732936:web:196328e7aa08f7b61ee9bd",
+      measurementId: "G-T7YZSF72Z0"
+    };
+  
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+  
+    document.getElementById('track-ride-btn').addEventListener('click', () => {
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      alert("Please log in first.");
+      return;
+    }
+
+    const userEmail = user.email;
+
+    // Step 1: Fetch group members where user is in group
+    const groupQuery = query(
+      collection(db, "groups"),
+      where("members", "array-contains", userEmail)
+    );
+
+    const groupSnapshot = await getDocs(groupQuery);
+    let members = [userEmail]; // default fallback
+
+    if (!groupSnapshot.empty) {
+      members = groupSnapshot.docs[0].data().members;
+    }
+
+    let foundRideId = null;
+
+    // Step 2: Look for ongoing or recent rides for any member
+    for (const member of members) {
+      // Ongoing ride
+      let rideQuery = query(
+        collection(db, "rides"),
+        where("rider", "==", member),
+        where("startTime", "!=", null),
+        where("endTime", "==", null),
+        orderBy("startTime", "desc"),
+        limit(1)
+      );
+
+      let rideSnapshot = await getDocs(rideQuery);
+
+      if (rideSnapshot.empty) {
+        // Try latest completed ride
+        rideQuery = query(
+          collection(db, "rides"),
+          where("rider", "==", member),
+          orderBy("startTime", "desc"),
+          limit(1)
+        );
+        rideSnapshot = await getDocs(rideQuery);
+      }
+
+      if (!rideSnapshot.empty) {
+        foundRideId = rideSnapshot.docs[0].id;
+        break; // stop after first found ride
+      }
+    }
+
+    if (foundRideId) {
+      window.location.href = `track.html?rideId=${foundRideId}`;
+    } else {
+      alert("No rides found for you or your group.");
+    }
+  });
+});
+
+  </script>  
 </body>
 </html>
