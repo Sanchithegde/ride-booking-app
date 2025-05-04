@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <title>Book a Ride</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    #pickup {
+      pointer-events: none;
+      background-color: #f0f0f0;
+      color: #555;
+      cursor: not-allowed;
+      user-select: none;
+    }
+  </style>
 </head>
 <body>
   <div class="group-container">
@@ -29,8 +38,7 @@
 
       <div class="form-group">
         <label for="rider">Select Group Member</label>
-        <select id="rider" required>
-        </select>
+        <select id="rider" required></select>
       </div>
 
       <button type="button" id="current-location-button" style="margin-top: 1rem;">Use My Current Location</button>

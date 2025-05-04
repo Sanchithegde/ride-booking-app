@@ -105,3 +105,11 @@
   body.booking-page .group-container {
     width: 850px !important;
   }
+
+  #pickup {
+    pointer-events: none;
+    background-color: #f0f0f0;
+    color: #555;
+    cursor: not-allowed;
+  }
+

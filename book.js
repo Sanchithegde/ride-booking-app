@@ -136,26 +136,24 @@ async function fetchUserLocation(email) {
 }
 
 riderSelect.addEventListener('change', async function () {
-  const riderEmail = riderSelect.value;
-  currentLocationButton.disabled = riderEmail !== currentUser.email;
-
-  if (riderEmail === currentUser.email) {
-    pickupInput.disabled = false;
-    pickupInput.value = "";
-    getCurrentLocationAndSet();
-  } else {
-    pickupInput.disabled = true;
-    const location = await fetchUserLocation(riderEmail);
-    if (location) {
-      const userLatLng = new google.maps.LatLng(location.lat, location.lng);
-      pickupInput.value = `${riderEmail}'s Location`;
-      setMarker(userLatLng, "pickup");
-      map.panTo(userLatLng);
+    const riderEmail = riderSelect.value;
+    currentLocationButton.disabled = riderEmail !== currentUser.email;
+  
+    if (riderEmail === currentUser.email) {
+      getCurrentLocationAndSet();
     } else {
-      alert("User location not found in Firestore.");
+      const location = await fetchUserLocation(riderEmail);
+      if (location) {
+        const userLatLng = new google.maps.LatLng(location.lat, location.lng);
+        pickupInput.value = `${riderEmail}'s Location`;
+        setMarker(userLatLng, "pickup");
+        map.panTo(userLatLng);
+      } else {
+        alert("User location not found in Firestore.");
+      }
     }
-  }
-});
+  });
+  
 
 function setMarker(location, type) {
   if (type === "pickup") {
