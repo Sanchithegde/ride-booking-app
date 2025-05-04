@@ -301,6 +301,19 @@ function listenToLiveLocation() {
 
 // Update status text
 function updateRideStatus(status) {
-  rideStatus.textContent = `Status: ${status}`;
-  rideStatus.style.color = status === "Completed" ? "green" : "orange";
-}
+    rideStatus.textContent = `Status: ${status}`;
+    rideStatus.style.color = status === "Completed" ? "green" : "orange";
+  
+    // Button enable/disable logic based on status
+    if (status === "Not Picked Up") {
+      startBtn.disabled = false;
+      endBtn.disabled = true;
+    } else if (status === "On the Way") {
+      startBtn.disabled = true;
+      endBtn.disabled = false;
+    } else if (status === "Completed") {
+      startBtn.disabled = true;
+      endBtn.disabled = true;
+    }
+  }
+  

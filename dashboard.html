@@ -68,36 +68,34 @@
 
     const userEmail = user.email;
 
-    // Step 1: Fetch group members where user is in group
+    // Step 1: Fetch group members
     const groupQuery = query(
       collection(db, "groups"),
       where("members", "array-contains", userEmail)
     );
 
     const groupSnapshot = await getDocs(groupQuery);
-    let members = [userEmail]; // default fallback
+    let members = [userEmail];
 
     if (!groupSnapshot.empty) {
       members = groupSnapshot.docs[0].data().members;
     }
 
-    let foundRideId = null;
+    let latestRide = null;
 
-    // Step 2: Look for ongoing or recent rides for any member
     for (const member of members) {
-      // Ongoing ride
+      // Fetch latest ongoing ride
       let rideQuery = query(
         collection(db, "rides"),
         where("rider", "==", member),
         where("startTime", "!=", null),
-        where("endTime", "==", null),
         orderBy("startTime", "desc"),
         limit(1)
       );
 
-      let rideSnapshot = await getDocs(rideQuery);
+      let snapshot = await getDocs(rideQuery);
 
-      if (rideSnapshot.empty) {
+      if (snapshot.empty) {
         // Try latest completed ride
         rideQuery = query(
           collection(db, "rides"),
@@ -105,22 +103,33 @@
           orderBy("startTime", "desc"),
           limit(1)
         );
-        rideSnapshot = await getDocs(rideQuery);
+        snapshot = await getDocs(rideQuery);
       }
 
-      if (!rideSnapshot.empty) {
-        foundRideId = rideSnapshot.docs[0].id;
-        break; // stop after first found ride
+      if (!snapshot.empty) {
+        const doc = snapshot.docs[0];
+        const data = doc.data();
+
+        if (
+          !latestRide ||
+          data.startTime.toMillis() > latestRide.startTime.toMillis()
+        ) {
+          latestRide = {
+            id: doc.id,
+            startTime: data.startTime
+          };
+        }
       }
     }
 
-    if (foundRideId) {
-      window.location.href = `track.html?rideId=${foundRideId}`;
+    if (latestRide) {
+      window.location.href = `track.html?rideId=${latestRide.id}`;
     } else {
       alert("No rides found for you or your group.");
     }
   });
 });
+
 
   </script>  
 </body>

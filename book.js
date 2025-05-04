@@ -39,6 +39,8 @@ let map, directionsService, directionsRenderer;
 let pickupMarker, dropMarker;
 let markers = [];
 
+let autocompletePickup, autocompleteDrop;
+
 const pickupInput = document.getElementById('pickup');
 const dropInput = document.getElementById('drop');
 const riderSelect = document.getElementById('rider');
@@ -54,7 +56,7 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
     await loadGroupMembersFromFirestore();
-    window.initMap(); // Call map init only after group loaded
+    window.initMap();
   } else {
     window.location.href = 'index.html';
   }
@@ -77,8 +79,8 @@ async function loadGroupMembersFromFirestore() {
       riderSelect.appendChild(option);
     });
 
-    // Set default selected value to logged-in user's email
     riderSelect.value = currentUser.email;
+    currentLocationButton.disabled = false;
 
   } else {
     confirmation.innerText = "No group found. Please create a group first.";
@@ -95,13 +97,14 @@ window.initMap = () => {
   directionsService = new google.maps.DirectionsService();
   directionsRenderer = new google.maps.DirectionsRenderer({ map });
 
-  const autocompletePickup = new google.maps.places.Autocomplete(pickupInput);
-  const autocompleteDrop = new google.maps.places.Autocomplete(dropInput);
+  autocompletePickup = new google.maps.places.Autocomplete(pickupInput);
+  autocompleteDrop = new google.maps.places.Autocomplete(dropInput);
 
   autocompletePickup.bindTo("bounds", map);
   autocompleteDrop.bindTo("bounds", map);
 
   autocompletePickup.addListener("place_changed", () => {
+    if (pickupInput.disabled) return;  // Block if not editable
     const place = autocompletePickup.getPlace();
     if (!place.geometry) return;
     setMarker(place.geometry.location, "pickup");
@@ -134,10 +137,14 @@ async function fetchUserLocation(email) {
 
 riderSelect.addEventListener('change', async function () {
   const riderEmail = riderSelect.value;
+  currentLocationButton.disabled = riderEmail !== currentUser.email;
 
   if (riderEmail === currentUser.email) {
+    pickupInput.disabled = false;
+    pickupInput.value = "";
     getCurrentLocationAndSet();
   } else {
+    pickupInput.disabled = true;
     const location = await fetchUserLocation(riderEmail);
     if (location) {
       const userLatLng = new google.maps.LatLng(location.lat, location.lng);
