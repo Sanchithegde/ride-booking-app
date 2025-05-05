@@ -94,12 +94,10 @@ authForm.addEventListener('submit', async (e) => {
           },
           (error) => {
             alert("Failed to get your location: " + error.message);
-            window.location.href = 'dashboard.html';
           }
         );
       } else {
         alert("Geolocation is not supported by your browser.");
-        window.location.href = 'dashboard.html';
       }
     }
      else {
