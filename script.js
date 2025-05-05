@@ -70,9 +70,39 @@ authForm.addEventListener('submit', async (e) => {
 
   try {
     if (isLogin) {
-      await signInWithEmailAndPassword(auth, email, password);
-      window.location.href = 'dashboard.html';
-    } else {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+    
+      // Fetch current location and update Firestore
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+    
+            try {
+              const userRef = doc(db, "users", user.uid);
+              await updateDoc(userRef, {
+                location: new GeoPoint(lat, lng)
+              });
+              localStorage.setItem('pickupCoords', JSON.stringify({ lat, lng }));
+            } catch (err) {
+              console.error("Failed to update location in Firestore:", err);
+            }
+    
+            window.location.href = 'dashboard.html';
+          },
+          (error) => {
+            alert("Failed to get your location: " + error.message);
+            window.location.href = 'dashboard.html';
+          }
+        );
+      } else {
+        alert("Geolocation is not supported by your browser.");
+        window.location.href = 'dashboard.html';
+      }
+    }
+     else {
       const name = nameInput.value.trim();
       if (!name) {
         errorMessage.textContent = 'Please enter your name.';
